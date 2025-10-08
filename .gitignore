@@ -1,0 +1,67 @@
+# ==== Archivos de Python ====
+__pycache__/
+*.py[cod]
+*$py.class
+
+# ==== Entornos virtuales ====
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# ==== Archivos de configuración local ====
+*.log
+*.pot
+*.pyproj
+*.sublime-project
+*.sublime-workspace
+
+# ==== Archivos generados por herramientas ====
+.Python
+ipynb_checkpoints/
+*.sqlite3
+*.db
+
+# ==== Archivos de compilación / distribución ====
+build/
+dist/
+*.egg-info/
+*.egg
+*.manifest
+*.spec
+*.bak
+*.tmp
+
+# ==== PyInstaller ====
+# (Genera el .exe y archivos temporales)
+*.manifest
+*.spec
+build/
+dist/
+
+# ==== Archivos del sistema operativo ====
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ==== Archivos de IDEs ====
+.vscode/
+.idea/
+*.swp
+*.swo
+*.bak
+*.tmp
+
+# ==== Archivos de Excel / temporales del programa ====
+~$*.xls*
+*.xlsx
+*.xlsm
+*.csv
+
+# ==== Archivos del usuario ====
+token.txt
+*.json
+*.pkl
