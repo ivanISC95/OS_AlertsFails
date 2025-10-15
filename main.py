@@ -76,12 +76,35 @@ def main():
         messagebox.showerror("Error", f"No se pudo leer el archivo CRM:\n{e}")
         return
 
+    def pasa_filtros(item):
+        # ✅ Solo registros con ControlDeActivos = "Sin riesgo"
+        if item.get("ControlDeActivos", "").strip().lower() != "sin riesgo":
+            return False
+        if item.get("EstatusKOF", "").strip().lower() != "LEGL":
+            return False
+        if item.get("CodigoPostal", "").strip().lower() != "" :
+            return False
+        if item.get("EntreCalles", "").strip().lower() != "" :
+            return False
+        if item.get("DirecciónPdV", "").strip().lower() != "" :
+            return False
+        if item.get("PdV", "").strip().lower() != "" :
+            return False
+        if item.get("IdPdV", "").strip().lower() != "" :
+            return False
+
+        # Puedes agregar más filtros personalizados aquí
+        # Ejemplo:
+        # if item.get("Zona", "") not in ["Morelia", "Chalco"]:
+        #     return False
+
+        return True
     fallas, alertas = [], []
     for item in data:
         serie = str(item.get("Serie", ""))
         falla_alerta = item.get("Estatus", "").lower()
 
-        if serie not in series_crm:
+        if serie not in series_crm and pasa_filtros(item):
             if "falla" in falla_alerta:
                 fallas.append(item)
             elif "alerta" in falla_alerta or "demanda" in falla_alerta:
