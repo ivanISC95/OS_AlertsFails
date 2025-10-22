@@ -41,7 +41,7 @@ def main():
     login_body = {"email": email, "password": password}
 
     try:
-        login_response = requests.post(login_url, json=login_body)
+        login_response = requests.post(login_url, json=login_body,verify=False)
         login_response.raise_for_status()
         token = login_response.json().get("token")
         if not token:
@@ -94,7 +94,7 @@ def main():
             "filter_by": series_crm
         }
 
-        vault_response = requests.post(vault_url, headers=headers, json=vault_body)
+        vault_response = requests.post(vault_url, headers=headers, json=vault_body,verify=False)
         vault_response.raise_for_status()
         vault_data = vault_response.json()
 
@@ -129,7 +129,7 @@ def main():
     }
 
     try:
-        response = requests.post(api_url, headers=headers, json=body)
+        response = requests.post(api_url, headers=headers, json=body,verify=False)
         response.raise_for_status()
         data = response.json()
     except Exception as e:
