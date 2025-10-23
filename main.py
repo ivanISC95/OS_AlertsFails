@@ -5,6 +5,7 @@ from tkinter import filedialog, simpledialog, messagebox, ttk
 import os
 import threading
 
+
 def mostrar_progreso(texto="Procesando..."):
     ventana = tk.Toplevel()
     ventana.title("Cargando...")
@@ -41,7 +42,7 @@ def main():
     login_body = {"email": email, "password": password}
 
     try:
-        login_response = requests.post(login_url, json=login_body,verify=False)
+        login_response = requests.post(login_url, json=login_body, verify=False)
         login_response.raise_for_status()
         token = login_response.json().get("token")
         if not token:
@@ -52,7 +53,6 @@ def main():
         return
 
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-
     progreso.destroy()
 
     # === 3️⃣ Seleccionar archivo CRM ===
@@ -73,6 +73,26 @@ def main():
         crm_df.columns = crm_df.columns.str.strip()
         if "Serie" not in crm_df.columns:
             raise Exception("El archivo no contiene columna 'Serie'")
+
+        # Convertir fechas y filtrar por mes más antiguo
+        if "Fecha de creación" in crm_df.columns:
+            crm_df["Fecha de creación"] = pd.to_datetime(
+                crm_df["Fecha de creación"],
+                format="%d/%m/%Y  %I:%M:%S %p",
+                errors="coerce"
+            )
+            fecha_menor = crm_df["Fecha de creación"].max()
+            if pd.notna(fecha_menor):
+                mes_menor = fecha_menor.month
+                # Guardamos las series que pertenecen al mes más antiguo
+                series_mes_menor = crm_df.loc[
+                    crm_df["Fecha de creación"].dt.month == mes_menor, "Serie"
+                ].astype(str).unique().tolist()
+            else:
+                series_mes_menor = crm_df["Serie"].astype(str).unique().tolist()
+        else:
+            series_mes_menor = crm_df["Serie"].astype(str).unique().tolist()
+
         series_crm = crm_df["Serie"].astype(str).unique().tolist()
     except Exception as e:
         progreso.destroy()
@@ -142,29 +162,53 @@ def main():
     # === 7️⃣ Procesar resultados ===
     progreso, barra = mostrar_progreso("Procesando y filtrando resultados...")
 
+    # def pasa_filtros(item):
+    #     if item.get("ControlDeActivos", "").strip().lower() != "sin riesgo":
+    #         return False
+    #     if item.get("EstatusKOF", "").strip().upper() != "LEGL":
+    #         return False
+    #     for campo in ["CodigoPostal", "EntreCalles", "DirecciónPdV", "PdV", "IdPdV"]:
+    #         if item.get(campo, "").strip() != "":
+    #             return False
+    #     return True
     def pasa_filtros(item):
-        if item.get("ControlDeActivos", "").strip().lower() != "sin riesgo":
+        control = item.get("ControlDeActivos", "").strip().lower()
+        estatus = item.get("EstatusKOF", "").strip().upper()
+        direccion_campos = [
+            item.get("CodigoPostal", "").strip(),
+            item.get("EntreCalles", "").strip(),
+            item.get("DirecciónPdV", "").strip(),
+            item.get("PdV", "").strip(),
+            item.get("IdPdV", "").strip()
+        ]
+
+        # ❌ Descartar si cumple cualquiera de las condiciones:
+        # 1. ControlDeActivos = 'Sin coincidencia'
+        # 2. EstatusKOF = 'LEGL'
+        # 3. Cualquier campo de dirección está vacío
+        if (
+                control == "sin coincidencia"
+                or estatus == "LEGL"
+                or any(campo == "" for campo in direccion_campos)
+        ):
             return False
-        if item.get("EstatusKOF", "").strip().upper() != "LEGL":
-            return False
-        for campo in ["CodigoPostal", "EntreCalles", "DirecciónPdV", "PdV", "IdPdV"]:
-            if item.get(campo, "").strip() != "":
-                return False
+
         return True
 
     fallas, alertas = [], []
     for item in data:
         serie = str(item.get("Serie", ""))
         falla_alerta = item.get("Estatus", "").lower()
-
+        region = item.get("Region", "").strip().lower()
         if (
             serie not in series_crm and
             serie not in series_excluir and
             pasa_filtros(item)
         ):
-            if "falla" in falla_alerta:
+            # ✅ Filtramos fallas por mes más antiguo del CMR
+            if "falla" in falla_alerta and serie in series_mes_menor:
                 fallas.append(item)
-            elif "alerta" in falla_alerta or "demanda" in falla_alerta:
+            elif ("alerta" in falla_alerta or "demanda" in falla_alerta) and region == 'monarca':
                 alertas.append(item)
 
     progreso.destroy()
