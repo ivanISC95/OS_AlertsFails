@@ -81,17 +81,17 @@ def main():
                 format="%d/%m/%Y  %I:%M:%S %p",
                 errors="coerce"
             )
-            fecha_menor = crm_df["Fecha de creación"].max()
-            if pd.notna(fecha_menor):
-                mes_menor = fecha_menor.month
+            fecha_mayor = crm_df["Fecha de creación"].max()
+            if pd.notna(fecha_mayor):
+                mes_mayor = fecha_mayor.month
                 # Guardamos las series que pertenecen al mes más antiguo
-                series_mes_menor = crm_df.loc[
-                    crm_df["Fecha de creación"].dt.month == mes_menor, "Serie"
+                series_mes_mayor = crm_df.loc[
+                    crm_df["Fecha de creación"].dt.month == mes_mayor, "Serie"
                 ].astype(str).unique().tolist()
             else:
-                series_mes_menor = crm_df["Serie"].astype(str).unique().tolist()
+                series_mes_mayor = crm_df["Serie"].astype(str).unique().tolist()
         else:
-            series_mes_menor = crm_df["Serie"].astype(str).unique().tolist()
+            series_mes_mayor = crm_df["Serie"].astype(str).unique().tolist()
 
         series_crm = crm_df["Serie"].astype(str).unique().tolist()
     except Exception as e:
@@ -200,13 +200,15 @@ def main():
         serie = str(item.get("Serie", ""))
         falla_alerta = item.get("Estatus", "").lower()
         region = item.get("Region", "").strip().lower()
+        falla_tipo_alerta = item.get("FallaAlerta", "").lower()
+
         if (
             serie not in series_crm and
             serie not in series_excluir and
             pasa_filtros(item)
         ):
             # ✅ Filtramos fallas por mes más antiguo del CMR
-            if "falla" in falla_alerta and serie in series_mes_menor:
+            if "falla" in falla_alerta or "falla" in falla_tipo_alerta or "temperatura" in falla_tipo_alerta and serie not in series_mes_mayor:
                 fallas.append(item)
             elif ("alerta" in falla_alerta or "demanda" in falla_alerta) and region == 'monarca':
                 alertas.append(item)
