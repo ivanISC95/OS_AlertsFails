@@ -221,15 +221,71 @@ def main():
         messagebox.showinfo("Cancelado", "No seleccionaste carpeta.")
         return
 
+    def formatear_dataframe(data):
+        df = pd.DataFrame(data)
+
+        # === Crear columnas base ===
+        df["FALLA"] = df.get("FallaAlerta", "")
+        df["REPORTE IMAGEN"] = ""
+        df["CALLE Y NUMERO"] = df.get("DirecciónPdV", "")
+        df["ENTRE CALLE"] = df.get("EntreCalles", "")
+        df["Y CALLE"] = ""
+
+        # Separar la columna EntreCalles en dos partes (antes y después de la palabra "y")
+        def separar_calles(valor):
+            if isinstance(valor, str) and "y" in valor.lower():
+                partes = valor.split("y", 1)
+                entre = partes[0].strip()
+                ycalle = partes[1].strip()
+                return entre, ycalle
+            return valor, ""
+
+        df["ENTRE CALLE"], df["Y CALLE"] = zip(*df["ENTRE CALLE"].map(separar_calles))
+
+        # Columna vacía DELEGACION / MUNICIPIO / CIUDAD
+        df["DELEGACION / MUNICIPIO / CIUDAD"] = ""
+
+        # Código postal
+        df["CP"] = df.get("CodigoPostal", "")
+        df["NUM. TEL"] = ""
+        df["HORARIO DE ATENCION"] = ""
+        df["CEDIS/DISTRIBUIDORA"] = ""
+        # Observaciones fijas
+        df["OBSERVACIONES"] = "enfriador reportado por conectividad"
+        df["SOLUCITUD DE SERVICIO"] = ""
+        # Coordenadas
+        df["LON"] = df.get("UltimaLongitud", "")
+        df["LAT"] = df.get("UltimaLatitud", "")
+        df["ID REPORTE/TICKET/FOLIO/PAEEEM"] = ""
+        df["OS"] = ""
+
+        # === Reordenar columnas ===
+        columnas_finales = [
+            "FALLA",
+            "CALLE Y NUMERO",
+            "ENTRE CALLE",
+            "Y CALLE",
+            "DELEGACION / MUNICIPIO / CIUDAD",
+            "CP",
+            "OBSERVACIONES",
+            "LON",
+            "LAT"
+        ]
+
+        df_final = df[columnas_finales]
+        return df_final
+
     saved_files = []
     if fallas:
+        df_fallas = formatear_dataframe(fallas)
         fallas_path = os.path.join(save_dir, "Fallas_Nuevas.xlsx")
-        pd.DataFrame(fallas).to_excel(fallas_path, index=False)
+        df_fallas.to_excel(fallas_path, index=False)
         saved_files.append(fallas_path)
 
     if alertas:
+        df_alertas = formatear_dataframe(alertas)
         alertas_path = os.path.join(save_dir, "Alertas_Nuevas.xlsx")
-        pd.DataFrame(alertas).to_excel(alertas_path, index=False)
+        df_alertas.to_excel(alertas_path, index=False)
         saved_files.append(alertas_path)
 
     if saved_files:
