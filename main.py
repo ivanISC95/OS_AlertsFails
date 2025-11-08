@@ -2,8 +2,10 @@ import requests
 import pandas as pd
 import tkinter as tk
 from tkinter import filedialog, simpledialog, messagebox, ttk
+import pickle
+import sys
 import os
-import threading
+
 
 
 def mostrar_progreso(texto="Procesando..."):
@@ -21,7 +23,16 @@ def mostrar_progreso(texto="Procesando..."):
 
     ventana.update()
     return ventana, barra
+def resource_path(relative_path):
+    """Obtiene la ruta correcta del recurso tanto en desarrollo como en el .exe"""
+    try:
+        # Cuando el script está empacado con PyInstaller
+        base_path = sys._MEIPASS
+    except Exception:
+        # Cuando se ejecuta como script normal
+        base_path = os.path.abspath(".")
 
+    return os.path.join(base_path, relative_path)
 
 def main():
     root = tk.Tk()
@@ -231,7 +242,7 @@ def main():
         df["ENTRE CALLE"] = df.get("EntreCalles", "")
         df["Y CALLE"] = ""
 
-        # Separar la columna EntreCalles en dos partes (antes y después de la palabra "y")
+        # --- Separar ENTRE CALLE y Y CALLE ---
         def separar_calles(valor):
             if isinstance(valor, str) and "y" in valor.lower():
                 partes = valor.split("y", 1)
@@ -242,29 +253,47 @@ def main():
 
         df["ENTRE CALLE"], df["Y CALLE"] = zip(*df["ENTRE CALLE"].map(separar_calles))
 
-        # Columna vacía DELEGACION / MUNICIPIO / CIUDAD
-        df["DELEGACION / MUNICIPIO / CIUDAD"] = ""
+        # === Cargar CP cp_data.pkl ===
+        pkl_path = resource_path("cp_data.pkl")
 
-        # Código postal
+        if not os.path.exists(pkl_path):
+            raise FileNotFoundError(f"No se encontró el archivo: {pkl_path}")
+
+        with open(pkl_path, "rb") as f:
+            cp_data = pickle.load(f)
+        df_cp = pd.DataFrame(cp_data)
+
+        # Normalizar tipos y columnas
+        df_cp.rename(columns={
+            "d_codigo": "CodigoPostal",
+            "d_asenta": "COLONIA / POBLADO",
+            "D_mnpio": "DELEGACION / MUNICIPIO / CIUDAD"
+        }, inplace=True)
+
+        # Convertir CodigoPostal a string (para evitar errores al comparar)
+        df["CodigoPostal"] = df.get("CodigoPostal", "").astype(str)
+        df_cp["CodigoPostal"] = df_cp["CodigoPostal"].astype(str)
+
+        # --- Unir la información del JSON con el DataFrame principal ---
+        df = df.merge(
+            df_cp[["CodigoPostal", "COLONIA / POBLADO", "DELEGACION / MUNICIPIO / CIUDAD"]],
+            on="CodigoPostal",
+            how="left"
+        )
+
+        # Código postal, observaciones, coordenadas, etc.
         df["CP"] = df.get("CodigoPostal", "")
-        df["NUM. TEL"] = ""
-        df["HORARIO DE ATENCION"] = ""
-        df["CEDIS/DISTRIBUIDORA"] = ""
-        # Observaciones fijas
         df["OBSERVACIONES"] = "enfriador reportado por conectividad"
-        df["SOLUCITUD DE SERVICIO"] = ""
-        # Coordenadas
         df["LON"] = df.get("UltimaLongitud", "")
         df["LAT"] = df.get("UltimaLatitud", "")
-        df["ID REPORTE/TICKET/FOLIO/PAEEEM"] = ""
-        df["OS"] = ""
 
-        # === Reordenar columnas ===
+        # === Reordenar columnas finales ===
         columnas_finales = [
             "FALLA",
             "CALLE Y NUMERO",
             "ENTRE CALLE",
             "Y CALLE",
+            "COLONIA / POBLADO",
             "DELEGACION / MUNICIPIO / CIUDAD",
             "CP",
             "OBSERVACIONES",
@@ -273,6 +302,7 @@ def main():
         ]
 
         df_final = df[columnas_finales]
+
         return df_final
 
     saved_files = []
