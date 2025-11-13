@@ -1,3 +1,9 @@
+DEBUG = True  # Cambia a False cuando no quieras ver los prints
+
+def debug_print(*args):
+    if DEBUG:
+        print(*args)
+
 import requests
 import pandas as pd
 import tkinter as tk
@@ -85,9 +91,9 @@ def main():
         if "Serie" not in crm_df.columns:
             raise Exception("El archivo no contiene columna 'Serie'")
 
+            crm_df["Fecha de creación"] = pd.to_datetime(
         # Convertir fechas y filtrar por mes más antiguo
         if "Fecha de creación" in crm_df.columns:
-            crm_df["Fecha de creación"] = pd.to_datetime(
                 crm_df["Fecha de creación"],
                 format="%d/%m/%Y  %I:%M:%S %p",
                 errors="coerce"
@@ -173,15 +179,6 @@ def main():
     # === 7️⃣ Procesar resultados ===
     progreso, barra = mostrar_progreso("Procesando y filtrando resultados...")
 
-    # def pasa_filtros(item):
-    #     if item.get("ControlDeActivos", "").strip().lower() != "sin riesgo":
-    #         return False
-    #     if item.get("EstatusKOF", "").strip().upper() != "LEGL":
-    #         return False
-    #     for campo in ["CodigoPostal", "EntreCalles", "DirecciónPdV", "PdV", "IdPdV"]:
-    #         if item.get(campo, "").strip() != "":
-    #             return False
-    #     return True
     def pasa_filtros(item):
         control = item.get("ControlDeActivos", "").strip().lower()
         estatus = item.get("EstatusKOF", "").strip().upper()
@@ -207,22 +204,44 @@ def main():
         return True
 
     fallas, alertas = [], []
+    debug_print(f"Total alertas/fallas obtenidas de API: {len(data)}")
+    debug_print(f"Series CRM: {len(series_crm)}, Series mes mayor: {len(series_mes_mayor)}")
+    debug_print(f"Series excluidas de vaultlist: {len(series_excluir)}")
+
     for item in data:
         serie = str(item.get("Serie", ""))
         falla_alerta = item.get("Estatus", "").lower()
         region = item.get("Region", "").strip().lower()
         falla_tipo_alerta = item.get("FallaAlerta", "").lower()
 
-        if (
-            serie not in series_crm and
-            serie not in series_excluir and
-            pasa_filtros(item)
-        ):
-            # ✅ Filtramos fallas por mes más antiguo del CMR
-            if "falla" in falla_alerta or "falla" in falla_tipo_alerta or "temperatura" in falla_tipo_alerta and serie not in series_mes_mayor:
+        # Saltar si no pasa los filtros básicos
+        if serie in series_crm:
+            debug_print(f"[IGNORADA - CRM] Serie {serie}")
+            continue
+        if serie in series_excluir:
+            debug_print(f"[IGNORADA - Vaultlist] Serie {serie}")
+            continue
+        if not pasa_filtros(item):
+            debug_print(
+                f"[IGNORADA - Filtros] Serie {serie} (ControlDeActivos={item.get('ControlDeActivos')}, EstatusKOF={item.get('EstatusKOF')})")
+            continue
+
+        # Si llega aquí, pasa filtros básicos
+        if ("falla" in falla_alerta or "falla" in falla_tipo_alerta or "temperatura" in falla_tipo_alerta):
+            if serie not in series_mes_mayor:
                 fallas.append(item)
-            elif ("alerta" in falla_alerta or "demanda" in falla_alerta) and region == 'monarca':
-                alertas.append(item)
+                debug_print(f"[FALLA ✅] Serie {serie}")
+            else:
+                debug_print(f"[IGNORADA - Mes mayor] Serie {serie}")
+        elif "alta demanda de compresor" in falla_tipo_alerta and region == 'monarca':
+            alertas.append(item)
+            debug_print(f"[ALERTA ✅] Serie {serie} (Región={region})")
+        else:
+            debug_print(
+                f"[IGNORADA - No cumple condición de alerta/falla] Serie {serie} (Estatus={falla_alerta}, Región={region})")
+
+    debug_print(f"Total fallas válidas: {len(fallas)}")
+    debug_print(f"Total alertas válidas: {len(alertas)}")
 
     progreso.destroy()
 
@@ -234,8 +253,11 @@ def main():
 
     def formatear_dataframe(data):
         df = pd.DataFrame(data)
-
         # === Crear columnas base ===
+        df["RAZON SOCIAL"] = df.get("PdV", "")
+        df["RESPONSABLE"] = df.get("ContactoDePdV", "")
+        df["MODELO"] = df.get("Modelo", "")
+        df["No SERIE"] = df.get("Serie", "")
         df["FALLA"] = df.get("FallaAlerta", "")
         df["REPORTE IMAGEN"] = ""
         df["CALLE Y NUMERO"] = df.get("DirecciónPdV", "")
@@ -283,22 +305,40 @@ def main():
 
         # Código postal, observaciones, coordenadas, etc.
         df["CP"] = df.get("CodigoPostal", "")
+        df["NUM. TEL"] = df.get("NumeroTelefono", "")
+        df["HORARIO DE ATENCION"] = ""
+        df["No CLIENTE DETALLISTA"] = df.get("IdPdV", "")
+        df["CEDIS/DISTRIBUIDORA"] = ""
         df["OBSERVACIONES"] = "enfriador reportado por conectividad"
+        df["SOLICITUD DE SERVICIO"] = ""
         df["LON"] = df.get("UltimaLongitud", "")
         df["LAT"] = df.get("UltimaLatitud", "")
-
+        df["ID REPORTE/TICKET/FOLIO/PAEEEM"] = ""
+        df["OS"] = ""
         # === Reordenar columnas finales ===
         columnas_finales = [
+            "RAZON SOCIAL",
+            "RESPONSABLE",
+            "MODELO",
+            "No SERIE",
             "FALLA",
+            "REPORTE IMAGEN",
             "CALLE Y NUMERO",
             "ENTRE CALLE",
             "Y CALLE",
             "COLONIA / POBLADO",
             "DELEGACION / MUNICIPIO / CIUDAD",
             "CP",
+            "NUM. TEL",
+            "HORARIO DE ATENCION",
+            "No CLIENTE DETALLISTA",
+            "CEDIS/DISTRIBUIDORA",
             "OBSERVACIONES",
+            "SOLICITUD DE SERVICIO",
             "LON",
-            "LAT"
+            "LAT",
+            "ID REPORTE/TICKET/FOLIO/PAEEEM",
+            "OS"
         ]
 
         df_final = df[columnas_finales]
@@ -306,14 +346,25 @@ def main():
         return df_final
 
     saved_files = []
+    debug_print(f"ALERTAS QUE VAN AL EXCEL: {len(alertas)}")
     if fallas:
         df_fallas = formatear_dataframe(fallas)
+
+        # 🔹 Eliminar duplicados por la columna "Serie"
+        if "No SERIE" in df_fallas.columns:
+            df_fallas = df_fallas.drop_duplicates(subset="No SERIE", keep="first")
+
         fallas_path = os.path.join(save_dir, "Fallas_Nuevas.xlsx")
         df_fallas.to_excel(fallas_path, index=False)
         saved_files.append(fallas_path)
 
     if alertas:
         df_alertas = formatear_dataframe(alertas)
+
+        # 🔹 Eliminar duplicados por la columna "Serie"
+        if "No SERIE" in df_alertas.columns:
+            df_alertas = df_alertas.drop_duplicates(subset="No SERIE", keep="first")
+
         alertas_path = os.path.join(save_dir, "Alertas_Nuevas.xlsx")
         df_alertas.to_excel(alertas_path, index=False)
         saved_files.append(alertas_path)
